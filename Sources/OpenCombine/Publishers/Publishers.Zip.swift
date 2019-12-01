@@ -632,7 +632,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
                 activeChildren.forEach { $0.cancel() }
                 return receiveValueDemandOverride
             case .sendValueDownstream(let value):
-                let newDemand =  downstream.receive(value)
+                let newDemand = downstream.receive(value)
                 if newDemand != .none {
                     lock.do { downstreamDemand += newDemand }
                 }
