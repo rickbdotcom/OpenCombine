@@ -541,7 +541,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
             }
 
             if shouldProcessQueue {
-                assert(processQueue() == nil)
+                processQueue()
             }
         }
     }
@@ -599,7 +599,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
         }
     }
 
-    private func processQueue() -> Subscribers.Demand? {
+    @discardableResult private func processQueue() -> Subscribers.Demand? {
         assert(queueIsBeingProcessed)
 
         // We loop processing the queue in case somebody put stuff on the queue while we
@@ -617,7 +617,10 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
                 return work
             }
 
-            guard let downstream = downstream else { return nil }
+            guard let downstream = downstream else {
+                assertionFailure()
+                return nil
+            }
 
             switch action {
             case .stopProcessing:
@@ -663,7 +666,7 @@ extension InnerBase: Subscription {
         }
 
         if shouldProcessQueue {
-            assert(processQueue() == nil)
+            processQueue()
         }
     }
 
