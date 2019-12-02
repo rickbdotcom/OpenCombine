@@ -589,4 +589,28 @@ final class ZipTests: XCTestCase {
         XCTAssertEqual(downstreamSubscriber.history, [.subscription("Zip"),
                                                       .completion(.failure(.oops))])
     }
+
+    func testZip2Lifecycle() throws {
+        let child2Publisher = PassthroughSubject<Int, TestingError>()
+        try testLifecycle(sendValue: 42,
+                          cancellingSubscriptionReleasesSubscriber: false,
+                          { $0.zip(child2Publisher) })
+    }
+
+    func testZip3Lifecycle() throws {
+        let child2Publisher = PassthroughSubject<Int, TestingError>()
+        let child3Publisher = PassthroughSubject<Int, TestingError>()
+        try testLifecycle(sendValue: 42,
+                          cancellingSubscriptionReleasesSubscriber: false,
+                          { $0.zip(child2Publisher, child3Publisher) })
+    }
+
+    func testZip4Lifecycle() throws {
+        let child2Publisher = PassthroughSubject<Int, TestingError>()
+        let child3Publisher = PassthroughSubject<Int, TestingError>()
+        let child4Publisher = PassthroughSubject<Int, TestingError>()
+        try testLifecycle(sendValue: 31,
+                          cancellingSubscriptionReleasesSubscriber: false,
+                          { $0.zip(child2Publisher, child3Publisher, child4Publisher) })
+    }
 }
