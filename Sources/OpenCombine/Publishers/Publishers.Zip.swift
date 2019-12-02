@@ -442,7 +442,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
     //  - In order to avoid any deadlock potential, it is absolutely forbidden to have
     //      any sort of call out from this class while the lock is held. This is why
     //      the draining of the work queue uses a relatively complex pattern.
-    private final var downstream: Downstream?
+    private final let downstream: Downstream
     private final var downstreamDemand = Subscribers.Demand.none
     private final var queueIsBeingProcessed = false
     private final var queuedWork = ArraySlice<QueuedWork>()
@@ -523,7 +523,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
     {
         switch completion {
         case .failure:
-            downstream?.receive(completion: completion)
+            downstream.receive(completion: completion)
             let subscriptionsToCancel: [Subscription] = lock.do {
                 child.state = .failed
                 return lockedUpstreamSubscriptions()
@@ -551,7 +551,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
     }
 
     private func sendSubscriptionDownstream() {
-        downstream?.receive(subscription: self)
+        downstream.receive(subscription: self)
     }
 
     private func lockedHasCompleteValueAvailable() -> Bool {
@@ -616,11 +616,6 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
                     demandReceivedWhileProcessing = nil
                 }
                 return work
-            }
-
-            guard let downstream = downstream else {
-                assertionFailure()
-                return nil
             }
 
             switch action {
