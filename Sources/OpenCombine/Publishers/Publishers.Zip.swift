@@ -353,11 +353,11 @@ extension Publishers.Zip {
             b.subscribe(bSubscriber)
         }
 
-        override fileprivate func lockedUpstreamSubscriptions() -> [ChildSubscription] {
+        override fileprivate var upstreamSubscriptions: [ChildSubscription] {
             return [aSubscriber, bSubscriber]
         }
 
-        override fileprivate func lockedDequeueValue() -> Downstream.Input {
+        override fileprivate var dequeueValue: Downstream.Input {
             return (aSubscriber.dequeueValue(), bSubscriber.dequeueValue())
         }
     }
@@ -380,11 +380,11 @@ extension Publishers.Zip3 {
             c.subscribe(cSubscriber)
         }
 
-        override fileprivate func lockedUpstreamSubscriptions() -> [ChildSubscription] {
+        override fileprivate var upstreamSubscriptions: [ChildSubscription] {
             return [aSubscriber, bSubscriber, cSubscriber]
         }
 
-        override fileprivate func lockedDequeueValue() -> Downstream.Input {
+        override fileprivate var dequeueValue: Downstream.Input {
             return (aSubscriber.dequeueValue(),
                     bSubscriber.dequeueValue(),
                     cSubscriber.dequeueValue())
@@ -420,11 +420,11 @@ extension Publishers.Zip4 {
             d.subscribe(dSubscriber)
         }
 
-        override fileprivate func lockedUpstreamSubscriptions() -> [ChildSubscription] {
+        override fileprivate var upstreamSubscriptions: [ChildSubscription] {
             return [aSubscriber, bSubscriber, cSubscriber, dSubscriber]
         }
 
-        override fileprivate func lockedDequeueValue() -> Downstream.Input {
+        override fileprivate var dequeueValue: Downstream.Input {
             return (aSubscriber.dequeueValue(),
                     bSubscriber.dequeueValue(),
                     cSubscriber.dequeueValue(),
@@ -469,18 +469,18 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
         lock.deallocate()
     }
 
-    fileprivate func lockedUpstreamSubscriptions() -> [ChildSubscription] {
+    fileprivate var upstreamSubscriptions: [ChildSubscription] {
         fatalError("override me")
     }
 
-    fileprivate func lockedDequeueValue() -> Downstream.Input {
+    fileprivate var dequeueValue: Downstream.Input {
         fatalError("override me")
     }
 
     fileprivate final func receivedSubscription(for child: ChildSubscription) {
         let sendSubscriptionDownstream: Bool = lock.do {
             child.state = .active
-            return lockedUpstreamSubscriptions()
+            return upstreamSubscriptions
                 .filter { $0.state == .waitingForSubscription }
                 .isEmpty
         }
@@ -526,7 +526,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
             downstream.receive(completion: completion)
             let subscriptionsToCancel: [Subscription] = lock.do {
                 child.state = .failed
-                return lockedUpstreamSubscriptions()
+                return upstreamSubscriptions
             }
             subscriptionsToCancel.forEach { $0.cancel() }
         case .finished:
@@ -547,7 +547,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
     }
 
     private func lockedMaybeDequeueValue() -> Downstream.Input? {
-        return lockedHasCompleteValueAvailable() ? lockedDequeueValue() : nil
+        return lockedHasCompleteValueAvailable() ? dequeueValue : nil
     }
 
     private func sendSubscriptionDownstream() {
@@ -555,12 +555,12 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
     }
 
     private func lockedHasCompleteValueAvailable() -> Bool {
-        return lockedUpstreamSubscriptions().allSatisfy { $0.hasValue() }
+        return upstreamSubscriptions.allSatisfy { $0.hasValue() }
     }
 
     private func lockedAreMoreValuesPossible() -> Bool {
         // More values are possible if all children are (active || have surplus)
-        return lockedUpstreamSubscriptions()
+        return upstreamSubscriptions
             .allSatisfy { $0.state == .active || $0.hasValue() }
     }
 
@@ -626,7 +626,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
             case .sendFinishDownstream:
                 downstream.receive(completion: .finished)
                 let activeChildren = lock.do {
-                    lockedUpstreamSubscriptions().filter { $0.state == .active }
+                    upstreamSubscriptions.filter { $0.state == .active }
                 }
                 activeChildren.forEach { $0.cancel() }
                 return receiveValueDemandOverride
@@ -636,7 +636,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
                     lock.do { downstreamDemand += newDemand }
                 }
             case .sendRequestUpstream(let demand):
-                lock.do { lockedUpstreamSubscriptions()
+                lock.do { upstreamSubscriptions
                     .filter { $0.childIndex != processingValueForChild?.childIndex }
                 }.forEach { $0.request(demand) }
             }
@@ -667,7 +667,7 @@ extension InnerBase: Subscription {
     }
 
     fileprivate final func cancel() {
-        lock.do(lockedUpstreamSubscriptions).forEach { $0.cancel() }
+        lock.do { upstreamSubscriptions }.forEach { $0.cancel() }
     }
 }
 
