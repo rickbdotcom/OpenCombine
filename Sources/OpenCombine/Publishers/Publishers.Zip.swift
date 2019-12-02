@@ -707,10 +707,6 @@ fileprivate final class ChildSubscriber<Upstream: Publisher, Downstream: Subscri
         self.childIndex = childIndex
     }
 
-    fileprivate final func appendValue(_ value: Upstream.Output) {
-        values.append(value)
-    }
-
     fileprivate final func dequeueValue() -> Upstream.Output {
         return values.remove(at: 0)
     }
