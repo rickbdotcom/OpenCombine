@@ -436,16 +436,18 @@ extension Publishers.Zip4 {
 private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
     let description = "Zip"
 
+    /// Locking rules for this class.
+    ///  - All mutable state must only be accessed while `lock` is held.
+    ///  - In order to avoid any deadlock potential, it is absolutely forbidden to have
+    ///      any sort of call out from this class while the lock is held. This is why
+    ///      the draining of the work queue uses a relatively complex pattern.
     private final let lock = UnfairRecursiveLock.allocate()
-    // Locking rules for this class.
-    //  - All mutable state must only be accessed while `lock` is held.
-    //  - In order to avoid any deadlock potential, it is absolutely forbidden to have
-    //      any sort of call out from this class while the lock is held. This is why
-    //      the draining of the work queue uses a relatively complex pattern.
+
     private final let downstream: Downstream
     private final var downstreamDemand = Subscribers.Demand.none
     private final var queueIsBeingProcessed = false
     private final var queuedWork = ArraySlice<QueuedWork>()
+
     // The following two pieces of state are a hacky implementation of subtle Apple
     // concurrency behaviors. Specifically, when Zip is processing an upstream child value
     // and sending a resulting value downstream, multiple behaviors are changed.
