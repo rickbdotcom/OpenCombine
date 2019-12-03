@@ -613,4 +613,25 @@ final class ZipTests: XCTestCase {
                           cancellingSubscriptionReleasesSubscriber: false,
                           { $0.zip(child2Publisher, child3Publisher, child4Publisher) })
     }
+
+    func testZipReceiveSubscriptionTwice() throws {
+        let child2Publisher = PassthroughSubject<Int, TestingError>()
+
+        // Can't use `testReceiveSubscriptionTwice` helper here as `(Int, Int)` output
+        // can't be made `Equatable`.
+        let helper = OperatorTestHelper(
+            publisherType: CustomPublisher.self,
+            initialDemand: nil,
+            receiveValueDemand: .none,
+            createSut: { $0.zip(child2Publisher) }
+        )
+
+        XCTAssertEqual(helper.subscription.history, [])
+
+        let secondSubscription = CustomSubscription()
+
+        assertCrashes {
+            helper.publisher.subscriber?.receive(subscription: secondSubscription)
+        }
+    }
 }
