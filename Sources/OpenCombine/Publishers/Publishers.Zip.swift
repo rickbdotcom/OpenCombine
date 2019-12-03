@@ -736,7 +736,6 @@ extension ChildSubscriber: Subscriber {
             upstreamSubscription = subscription
             parent.receivedSubscription(for: self)
         } else {
-            assertionFailure()
             subscription.cancel()
         }
     }

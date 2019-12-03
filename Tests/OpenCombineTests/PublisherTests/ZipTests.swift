@@ -630,8 +630,23 @@ final class ZipTests: XCTestCase {
 
         let secondSubscription = CustomSubscription()
 
-        assertCrashes {
-            helper.publisher.subscriber?.receive(subscription: secondSubscription)
-        }
+        try XCTUnwrap(helper.publisher.subscriber)
+            .receive(subscription: secondSubscription)
+
+        XCTAssertEqual(secondSubscription.history, [.cancelled])
+
+        try XCTUnwrap(helper.publisher.subscriber)
+            .receive(subscription: helper.subscription)
+
+        XCTAssertEqual(helper.subscription.history, [.cancelled])
+
+        try XCTUnwrap(helper.downstreamSubscription).cancel()
+
+        XCTAssertEqual(helper.subscription.history, [.cancelled, .cancelled])
+
+        let thirdSubscription = CustomSubscription()
+
+        try XCTUnwrap(helper.publisher.subscriber)
+            .receive(subscription: thirdSubscription)
     }
 }
