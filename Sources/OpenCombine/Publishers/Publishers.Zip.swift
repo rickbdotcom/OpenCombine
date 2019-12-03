@@ -357,7 +357,7 @@ extension Publishers.Zip {
             return [aSubscriber, bSubscriber]
         }
 
-        override fileprivate var dequeueValue: Downstream.Input {
+        override fileprivate func dequeueValue() -> Downstream.Input {
             return (aSubscriber.dequeueValue(), bSubscriber.dequeueValue())
         }
     }
@@ -384,7 +384,7 @@ extension Publishers.Zip3 {
             return [aSubscriber, bSubscriber, cSubscriber]
         }
 
-        override fileprivate var dequeueValue: Downstream.Input {
+        override fileprivate func dequeueValue() -> Downstream.Input {
             return (aSubscriber.dequeueValue(),
                     bSubscriber.dequeueValue(),
                     cSubscriber.dequeueValue())
@@ -424,7 +424,7 @@ extension Publishers.Zip4 {
             return [aSubscriber, bSubscriber, cSubscriber, dSubscriber]
         }
 
-        override fileprivate var dequeueValue: Downstream.Input {
+        override fileprivate func dequeueValue() -> Downstream.Input {
             return (aSubscriber.dequeueValue(),
                     bSubscriber.dequeueValue(),
                     cSubscriber.dequeueValue(),
@@ -475,7 +475,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
         fatalError("override me")
     }
 
-    fileprivate var dequeueValue: Downstream.Input {
+    fileprivate func dequeueValue() -> Downstream.Input {
         fatalError("override me")
     }
 
@@ -498,7 +498,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
     ) -> Subscribers.Demand {
         let shouldProcessQueue: Bool = lock.do {
             lockedStoreValue()
-            if let dequeuedValue = maybeDequeueValue {
+            if let dequeuedValue = maybeDequeueValue() {
                 queuedWork.append(.receivedValueFromUpstream(value: dequeuedValue))
                 if !queueIsBeingProcessed {
                     assert(processingValueForChild == nil)
@@ -547,8 +547,8 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
         }
     }
 
-    private var maybeDequeueValue: Downstream.Input? {
-        return hasCompleteValueAvailable ? dequeueValue : nil
+    private func maybeDequeueValue() -> Downstream.Input? {
+        return hasCompleteValueAvailable ? dequeueValue() : nil
     }
 
     private func sendSubscriptionDownstream() {
@@ -556,13 +556,13 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
     }
 
     private var hasCompleteValueAvailable: Bool {
-        return upstreamSubscriptions.allSatisfy { $0.hasValue() }
+        return upstreamSubscriptions.allSatisfy { $0.hasValue }
     }
 
     private var areMoreValuesPossible: Bool {
         // More values are possible if all children are (active || have surplus)
         return upstreamSubscriptions
-            .allSatisfy { $0.state == .active || $0.hasValue() }
+            .allSatisfy { $0.state == .active || $0.hasValue }
     }
 
     private enum QueueAction {
@@ -580,7 +580,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
     }
 
     private func lockedActionToTake() -> QueueAction {
-        guard let work = self.queuedWork.popFirst() else { return .stopProcessing }
+        guard let work = queuedWork.popFirst() else { return .stopProcessing }
         switch work {
         case .receivedValueFromUpstream(let value):
             // TODO: Fix the implementation of Demand. I think it currently is too
@@ -687,8 +687,7 @@ private enum ChildState {
 private protocol ChildSubscription: AnyObject, Subscription {
     var state: ChildState { get set }
     var childIndex: Int { get }
-
-    func hasValue() -> Bool
+    var hasValue: Bool { get }
 }
 
 fileprivate final class ChildSubscriber<Upstream: Publisher, Downstream: Subscriber>
@@ -714,7 +713,7 @@ fileprivate final class ChildSubscriber<Upstream: Publisher, Downstream: Subscri
 }
 
 extension ChildSubscriber: ChildSubscription {
-    fileprivate final func hasValue() -> Bool {
+    fileprivate final var hasValue: Bool {
         return !values.isEmpty
     }
 }
