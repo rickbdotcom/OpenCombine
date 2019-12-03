@@ -493,11 +493,10 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
     fileprivate final func receivedChildValue(
         child: ChildSubscription,
         _ lockedStoreValue: () -> Void
-    ) -> Subscribers.Demand
-    {
+    ) -> Subscribers.Demand {
         let shouldProcessQueue: Bool = lock.do {
             lockedStoreValue()
-            if let dequeuedValue = lockedMaybeDequeueValue() {
+            if let dequeuedValue = maybeDequeueValue {
                 queuedWork.append(.receivedValueFromUpstream(value: dequeuedValue))
                 if !queueIsBeingProcessed {
                     assert(processingValueForChild == nil)
@@ -546,19 +545,19 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
         }
     }
 
-    private func lockedMaybeDequeueValue() -> Downstream.Input? {
-        return lockedHasCompleteValueAvailable() ? dequeueValue : nil
+    private var maybeDequeueValue: Downstream.Input? {
+        return hasCompleteValueAvailable ? dequeueValue : nil
     }
 
     private func sendSubscriptionDownstream() {
         downstream.receive(subscription: self)
     }
 
-    private func lockedHasCompleteValueAvailable() -> Bool {
+    private var hasCompleteValueAvailable: Bool {
         return upstreamSubscriptions.allSatisfy { $0.hasValue() }
     }
 
-    private func lockedAreMoreValuesPossible() -> Bool {
+    private var areMoreValuesPossible: Bool {
         // More values are possible if all children are (active || have surplus)
         return upstreamSubscriptions
             .allSatisfy { $0.state == .active || $0.hasValue() }
@@ -592,7 +591,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
             }
             return .sendValueDownstream(value)
         case .receivedFinishedFromUpstream:
-            return (processingValueForChild != nil || lockedAreMoreValuesPossible()) ?
+            return (processingValueForChild != nil || areMoreValuesPossible) ?
                 .noAction : .sendFinishDownstream
         case .receivedRequestFromDownstream(let demand):
             return .sendRequestUpstream(demand)
