@@ -599,7 +599,7 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
         }
     }
 
-    @discardableResult 
+    @discardableResult
     private func processQueue() -> Subscribers.Demand? {
         assert(queueIsBeingProcessed)
 
