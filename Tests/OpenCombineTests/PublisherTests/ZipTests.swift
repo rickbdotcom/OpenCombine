@@ -659,7 +659,7 @@ final class ZipTests: XCTestCase {
                     $0.request(.none)
                 },
                 receiveValue: { _ in
-                    return .max(1)
+                    .max(1)
                 }
             )
 
