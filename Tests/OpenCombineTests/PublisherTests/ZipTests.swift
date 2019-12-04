@@ -650,14 +650,25 @@ final class ZipTests: XCTestCase {
             .receive(subscription: thirdSubscription)
     }
 
+    func testNoDemandOnSubscriptionCrashes() {
+        ZipTests.arities.forEach { arity in
+            let (_, zip) = getChildrenAndZipForArity(arity)
+
+            let downstreamSubscriber = TrackingSubscriber(
+                receiveSubscription: { subscription in
+                    self.assertCrashes { subscription.request(.none) }
+                }
+            )
+
+            zip.subscribe(downstreamSubscriber)
+        }
+    }
+
     func testIncreasedDemand() throws {
         ZipTests.arities.forEach { arity in
             let (children, zip) = getChildrenAndZipForArity(arity)
 
             let downstreamSubscriber = TrackingSubscriber(
-                receiveSubscription: {
-                    $0.request(.none)
-                },
                 receiveValue: { _ in
                     .max(1)
                 }
@@ -665,7 +676,14 @@ final class ZipTests: XCTestCase {
 
             zip.subscribe(downstreamSubscriber)
 
-            (0..<arity).forEach { XCTAssertEqual(children[$0].publisher.send(1), .none) }
+            (0..<arity).forEach {
+                let demand = children[$0].publisher.send(1)
+                if $0 == arity - 1 {
+                    XCTAssertEqual(demand, .max(1))
+                } else {
+                    XCTAssertEqual(demand, .none)
+                }
+            }
 
             XCTAssertEqual(downstreamSubscriber.history, [.subscription("Zip"),
                                                           .value(arity)])

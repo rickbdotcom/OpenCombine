@@ -634,7 +634,10 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
             case .sendValueDownstream(let value):
                 let newDemand = downstream.receive(value)
                 if newDemand != .none {
-                    lock.do { downstreamDemand += newDemand }
+                    lock.do {
+                        downstreamDemand += newDemand
+                        demandReceivedWhileProcessing = newDemand
+                    }
                 }
             case .sendRequestUpstream(let demand):
                 lock.do { upstreamSubscriptions
@@ -647,8 +650,8 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
 
 extension InnerBase: Subscription {
     fileprivate final func request(_ demand: Subscribers.Demand) {
-        if demand == .none {
-            return
+        guard demand != .none else {
+            fatalError()
         }
         let shouldProcessQueue: Bool = lock.do {
             downstreamDemand += demand  // TODO: Move this to the action processing?
