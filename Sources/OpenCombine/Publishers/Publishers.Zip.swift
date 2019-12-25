@@ -472,11 +472,11 @@ private class InnerBase<Downstream: Subscriber>: CustomStringConvertible {
     }
 
     fileprivate var upstreamSubscriptions: [ChildSubscription] {
-        fatalError("override me")
+        abstractMethod()
     }
 
     fileprivate func dequeueValue() -> Downstream.Input {
-        fatalError("override me")
+        abstractMethod()
     }
 
     fileprivate final func receivedSubscription(for child: ChildSubscription) {
