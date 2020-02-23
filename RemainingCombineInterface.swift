@@ -762,8 +762,60 @@ extension Publisher {
 
 extension Publishers {
 
-    /// A publisher that publishes elements only after a specified time interval elapses between events.
-    public struct Debounce<Upstream, Context> : Publisher where Upstream : Publisher, Context : Scheduler {
+    /// A publisher that raises a fatal error upon receiving any failure, and otherwise republishes all received input.
+    ///
+    /// Use this function for internal sanity checks that are active during testing but do not impact performance of shipping code.
+    public struct AssertNoFailure<Upstream> : Publisher where Upstream : Publisher {
+
+        /// The kind of values published by this publisher.
+        public typealias Output = Upstream.Output
+
+        /// The kind of errors this publisher might publish.
+        ///
+        /// Use `Never` if this `Publisher` does not publish errors.
+        public typealias Failure = Never
+        /// The publisher from which this publisher receives elements.
+        public let upstream: Upstream
+
+        /// The string used at the beginning of the fatal error message.
+        public let prefix: String
+
+        /// The filename used in the error message.
+        public let file: StaticString
+
+        /// The line number used in the error message.
+        public let line: UInt
+
+        public init(upstream: Upstream, prefix: String, file: StaticString, line: UInt)
+
+        /// This function is called to attach the specified `Subscriber` to this `Publisher` by `subscribe(_:)`
+        ///
+        /// - SeeAlso: `subscribe(_:)`
+        /// - Parameters:
+        ///     - subscriber: The subscriber to attach to this `Publisher`.
+        ///                   once attached it can begin to receive values.
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, S.Failure == Publishers.AssertNoFailure<Upstream>.Failure
+    }
+}
+
+extension Publisher {
+
+    /// Raises a fatal error when its upstream publisher fails, and otherwise republishes all received input.
+    ///
+    /// Use this function for internal sanity checks that are active during testing but do not impact performance of shipping code.
+    ///
+    /// - Parameters:
+    ///   - prefix: A string used at the beginning of the fatal error message.
+    ///   - file: A filename used in the error message. This defaults to `#file`.
+    ///   - line: A line number used in the error message. This defaults to `#line`.
+    /// - Returns: A publisher that raises a fatal error when its upstream publisher fails.
+    public func assertNoFailure(_ prefix: String = "", file: StaticString = #file, line: UInt = #line) -> Publishers.AssertNoFailure<Self>
+}
+
+extension Publishers {
+
+    /// A publisher that ignores elements from the upstream publisher until it receives an element from second publisher.
+    public struct DropUntilOutput<Upstream, Other> : Publisher where Upstream : Publisher, Other : Publisher, Upstream.Failure == Other.Failure {
 
         /// The kind of values published by this publisher.
         public typealias Output = Upstream.Output
@@ -773,19 +825,18 @@ extension Publishers {
         /// Use `Never` if this `Publisher` does not publish errors.
         public typealias Failure = Upstream.Failure
 
-        /// The publisher from which this publisher receives elements.
+        /// The publisher that this publisher receives elements from.
         public let upstream: Upstream
 
-        /// The amount of time the publisher should wait before publishing an element.
-        public let dueTime: Context.SchedulerTimeType.Stride
+        /// A publisher to monitor for its first emitted element.
+        public let other: Other
 
-        /// The scheduler on which this publisher delivers elements.
-        public let scheduler: Context
-
-        /// Scheduler options that customize this publisher’s delivery of elements.
-        public let options: Context.SchedulerOptions?
-
-        public init(upstream: Upstream, dueTime: Context.SchedulerTimeType.Stride, scheduler: Context, options: Context.SchedulerOptions?)
+        /// Creates a publisher that ignores elements from the upstream publisher until it receives an element from another publisher.
+        ///
+        /// - Parameters:
+        ///   - upstream: A publisher to drop elements from while waiting for another publisher to emit elements.
+        ///   - other: A publisher to monitor for its first emitted element.
+        public init(upstream: Upstream, other: Other)
 
         /// This function is called to attach the specified `Subscriber` to this `Publisher` by `subscribe(_:)`
         ///
@@ -793,21 +844,20 @@ extension Publishers {
         /// - Parameters:
         ///     - subscriber: The subscriber to attach to this `Publisher`.
         ///                   once attached it can begin to receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, Upstream.Output == S.Input
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Output == S.Input, Other.Failure == S.Failure
     }
 }
 
 extension Publisher {
 
-    /// Publishes elements only after a specified time interval elapses between events.
+    /// Ignores elements from the upstream publisher until it receives an element from a second publisher.
     ///
-    /// Use this operator when you want to wait for a pause in the delivery of events from the upstream publisher. For example, call `debounce` on the publisher from a text field to only receive elements when the user pauses or stops typing. When they start typing again, the `debounce` holds event delivery until the next pause.
-    /// - Parameters:
-    ///   - dueTime: The time the publisher should wait before publishing an element.
-    ///   - scheduler: The scheduler on which this publisher delivers elements
-    ///   - options: Scheduler options that customize this publisher’s delivery of elements.
-    /// - Returns: A publisher that publishes events only after a specified time elapses.
-    public func debounce<S>(for dueTime: S.SchedulerTimeType.Stride, scheduler: S, options: S.SchedulerOptions? = nil) -> Publishers.Debounce<Self, S> where S : Scheduler
+    /// This publisher requests a single value from the upstream publisher, and it ignores (drops) all elements from that publisher until the upstream publisher produces a value. After the `other` publisher produces an element, this publisher cancels its subscription to the `other` publisher, and allows events from the `upstream` publisher to pass through.
+    /// After this publisher receives a subscription from the upstream publisher, it passes through backpressure requests from downstream to the upstream publisher. If the upstream publisher acts on those requests before the other publisher produces an item, this publisher drops the elements it receives from the upstream publisher.
+    ///
+    /// - Parameter publisher: A publisher to monitor for its first emitted element.
+    /// - Returns: A publisher that drops elements from the upstream publisher until the `other` publisher produces a value.
+    public func drop<P>(untilOutputFrom publisher: P) -> Publishers.DropUntilOutput<Self, P> where P : Publisher, Self.Failure == P.Failure
 }
 
 extension Publishers {
