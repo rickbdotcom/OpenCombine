@@ -533,7 +533,8 @@ final class ZipTests: XCTestCase {
         child1Publisher.send(completion: .finished)
 
         XCTAssertEqual(downstreamSubscriber.history, [.subscription("Zip"),
-                                                      .completion(.finished)])    }
+                                                      .completion(.finished)])
+    }
 
     func testFinishAfterFailed() {
         let child1Publisher = PassthroughSubject<Int, TestingError>()
