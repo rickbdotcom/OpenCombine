@@ -286,8 +286,7 @@ final class ZipTests: XCTestCase {
     func testImmediateFinishWhenOneChildFinishesWithNoSurplus() {
         ZipTests.arities.forEach { arity in
             for childToFinish in (0..<arity) {
-                let description =
-                    String(format:"Zip\(arity) childToFinish=\(childToFinish)")
+                let description = "Zip\(arity) childToFinish=\(childToFinish)"
                 let (children, zip) = getChildrenAndZipForArity(arity)
                 let downstreamSubscriber = TrackingSubscriber(receiveSubscription: {
                     $0.request(.unlimited)
