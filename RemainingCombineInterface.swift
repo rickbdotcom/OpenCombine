@@ -859,22 +859,96 @@ extension Publisher {
 
 extension Publishers {
 
-    /// A publisher created by applying the zip function to two upstream publishers.
-    public struct Zip<A, B> : Publisher where A : Publisher, B : Publisher, A.Failure == B.Failure {
+
+    /// A strategy for filling a buffer.
+    ///
+    /// * keepFull: A strategy to fill the buffer at subscription time, and keep it full thereafter.
+    /// * byRequest: A strategy that avoids prefetching and instead performs requests on demand.
+    public enum PrefetchStrategy {
+
+        case keepFull
+
+        case byRequest
+
+        /// Returns a Boolean value indicating whether two values are equal.
+        ///
+        /// Equality is the inverse of inequality. For any values `a` and `b`,
+        /// `a == b` implies that `a != b` is `false`.
+        ///
+        /// - Parameters:
+        ///   - lhs: A value to compare.
+        ///   - rhs: Another value to compare.
+        public static func == (a: Publishers.PrefetchStrategy, b: Publishers.PrefetchStrategy) -> Bool
+
+        /// The hash value.
+        ///
+        /// Hash values are not guaranteed to be equal across different executions of
+        /// your program. Do not save hash values to use during a future execution.
+        ///
+        /// - Important: `hashValue` is deprecated as a `Hashable` requirement. To
+        ///   conform to `Hashable`, implement the `hash(into:)` requirement instead.
+        public var hashValue: Int { get }
+
+        /// Hashes the essential components of this value by feeding them into the
+        /// given hasher.
+        ///
+        /// Implement this method to conform to the `Hashable` protocol. The
+        /// components used for hashing must be the same as the components compared
+        /// in your type's `==` operator implementation. Call `hasher.combine(_:)`
+        /// with each of these components.
+        ///
+        /// - Important: Never call `finalize()` on `hasher`. Doing so may become a
+        ///   compile-time error in the future.
+        ///
+        /// - Parameter hasher: The hasher to use when combining the components
+        ///   of this instance.
+        public func hash(into hasher: inout Hasher)
+    }
+
+    /// A strategy for handling exhaustion of a buffer’s capacity.
+    ///
+    /// * dropNewest: When full, discard the newly-received element without buffering it.
+    /// * dropOldest: When full, remove the least recently-received element from the buffer.
+    /// * customError: When full, execute the closure to provide a custom error.
+    public enum BufferingStrategy<Failure> where Failure : Error {
+
+        case dropNewest
+
+        case dropOldest
+
+        case customError(() -> Failure)
+    }
+
+    /// A publisher that buffers elements received from an upstream publisher.
+    public struct Buffer<Upstream> : Publisher where Upstream : Publisher {
 
         /// The kind of values published by this publisher.
-        public typealias Output = (A.Output, B.Output)
+        public typealias Output = Upstream.Output
 
         /// The kind of errors this publisher might publish.
         ///
         /// Use `Never` if this `Publisher` does not publish errors.
-        public typealias Failure = A.Failure
 
-        public let a: A
+        public typealias Failure = Upstream.Failure
 
-        public let b: B
+        /// The publisher from which this publisher receives elements.
+        public let upstream: Upstream
 
-        public init(_ a: A, _ b: B)
+        /// The maximum number of elements to store.
+        public let size: Int
+
+        /// The strategy for initially populating the buffer.
+        public let prefetch: Publishers.PrefetchStrategy
+
+        /// The action to take when the buffer becomes full.
+        public let whenFull: Publishers.BufferingStrategy<Upstream.Failure>
+
+        /// Creates a publisher that buffers elements received from an upstream publisher.
+        /// - Parameter upstream: The publisher from which this publisher receives elements.
+        /// - Parameter size: The maximum number of elements to store.
+        /// - Parameter prefetch: The strategy for initially populating the buffer.
+        /// - Parameter whenFull: The action to take when the buffer becomes full.
+        public init(upstream: Upstream, size: Int, prefetch: Publishers.PrefetchStrategy, whenFull: Publishers.BufferingStrategy<Publishers.Buffer<Upstream>.Failure>)
 
         /// This function is called to attach the specified `Subscriber` to this `Publisher` by `subscribe(_:)`
         ///
@@ -882,142 +956,23 @@ extension Publishers {
         /// - Parameters:
         ///     - subscriber: The subscriber to attach to this `Publisher`.
         ///                   once attached it can begin to receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, B.Failure == S.Failure, S.Input == (A.Output, B.Output)
+        public func receive<S>(subscriber: S) where S : Subscriber, Upstream.Failure == S.Failure, Upstream.Output == S.Input
     }
+}
 
-    /// A publisher created by applying the zip function to three upstream publishers.
-    public struct Zip3<A, B, C> : Publisher where A : Publisher, B : Publisher, C : Publisher, A.Failure == B.Failure, B.Failure == C.Failure {
+extension Publishers.PrefetchStrategy : Equatable {
+}
 
-        /// The kind of values published by this publisher.
-        public typealias Output = (A.Output, B.Output, C.Output)
-
-        /// The kind of errors this publisher might publish.
-        ///
-        /// Use `Never` if this `Publisher` does not publish errors.
-        public typealias Failure = A.Failure
-
-        public let a: A
-
-        public let b: B
-
-        public let c: C
-
-        public init(_ a: A, _ b: B, _ c: C)
-
-        /// This function is called to attach the specified `Subscriber` to this `Publisher` by `subscribe(_:)`
-        ///
-        /// - SeeAlso: `subscribe(_:)`
-        /// - Parameters:
-        ///     - subscriber: The subscriber to attach to this `Publisher`.
-        ///                   once attached it can begin to receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, C.Failure == S.Failure, S.Input == (A.Output, B.Output, C.Output)
-    }
-
-    /// A publisher created by applying the zip function to four upstream publishers.
-    public struct Zip4<A, B, C, D> : Publisher where A : Publisher, B : Publisher, C : Publisher, D : Publisher, A.Failure == B.Failure, B.Failure == C.Failure, C.Failure == D.Failure {
-
-        /// The kind of values published by this publisher.
-        public typealias Output = (A.Output, B.Output, C.Output, D.Output)
-
-        /// The kind of errors this publisher might publish.
-        ///
-        /// Use `Never` if this `Publisher` does not publish errors.
-        public typealias Failure = A.Failure
-
-        public let a: A
-
-        public let b: B
-
-        public let c: C
-
-        public let d: D
-
-        public init(_ a: A, _ b: B, _ c: C, _ d: D)
-
-        /// This function is called to attach the specified `Subscriber` to this `Publisher` by `subscribe(_:)`
-        ///
-        /// - SeeAlso: `subscribe(_:)`
-        /// - Parameters:
-        ///     - subscriber: The subscriber to attach to this `Publisher`.
-        ///                   once attached it can begin to receive values.
-        public func receive<S>(subscriber: S) where S : Subscriber, D.Failure == S.Failure, S.Input == (A.Output, B.Output, C.Output, D.Output)
-    }
+extension Publishers.PrefetchStrategy : Hashable {
 }
 
 extension Publisher {
 
-    /// Combine elements from another publisher and deliver pairs of elements as tuples.
-    ///
-    /// The returned publisher waits until both publishers have emitted an event, then delivers the oldest unconsumed event from each publisher together as a tuple to the subscriber.
-    /// For example, if publisher `P1` emits elements `a` and `b`, and publisher `P2` emits event `c`, the zip publisher emits the tuple `(a, c)`. It won’t emit a tuple with event `b` until `P2` emits another event.
-    /// If either upstream publisher finishes successfuly or fails with an error, the zipped publisher does the same.
-    ///
-    /// - Parameter other: Another publisher.
-    /// - Returns: A publisher that emits pairs of elements from the upstream publishers as tuples.
-    public func zip<P>(_ other: P) -> Publishers.Zip<Self, P> where P : Publisher, Self.Failure == P.Failure
-
-    /// Combine elements from another publisher and deliver a transformed output.
-    ///
-    /// The returned publisher waits until both publishers have emitted an event, then delivers the oldest unconsumed event from each publisher together as a tuple to the subscriber.
-    /// For example, if publisher `P1` emits elements `a` and `b`, and publisher `P2` emits event `c`, the zip publisher emits the tuple `(a, c)`. It won’t emit a tuple with event `b` until `P2` emits another event.
-    /// If either upstream publisher finishes successfuly or fails with an error, the zipped publisher does the same.
-    ///
-    /// - Parameter other: Another publisher.
-    ///   - transform: A closure that receives the most recent value from each publisher and returns a new value to publish.
-    /// - Returns: A publisher that emits pairs of elements from the upstream publishers as tuples.
-    public func zip<P, T>(_ other: P, _ transform: @escaping (Self.Output, P.Output) -> T) -> Publishers.Map<Publishers.Zip<Self, P>, T> where P : Publisher, Self.Failure == P.Failure
-
-    /// Combine elements from two other publishers and deliver groups of elements as tuples.
-    ///
-    /// The returned publisher waits until all three publishers have emitted an event, then delivers the oldest unconsumed event from each publisher as a tuple to the subscriber.
-    /// For example, if publisher `P1` emits elements `a` and `b`, and publisher `P2` emits elements `c` and `d`, and publisher `P3` emits the event `e`, the zip publisher emits the tuple `(a, c, e)`. It won’t emit a tuple with elements `b` or `d` until `P3` emits another event.
-    /// If any upstream publisher finishes successfuly or fails with an error, the zipped publisher does the same.
-    ///
-    /// - Parameters:
-    ///   - publisher1: A second publisher.
-    ///   - publisher2: A third publisher.
-    /// - Returns: A publisher that emits groups of elements from the upstream publishers as tuples.
-    public func zip<P, Q>(_ publisher1: P, _ publisher2: Q) -> Publishers.Zip3<Self, P, Q> where P : Publisher, Q : Publisher, Self.Failure == P.Failure, P.Failure == Q.Failure
-
-    /// Combine elements from two other publishers and deliver a transformed output.
-    ///
-    /// The returned publisher waits until all three publishers have emitted an event, then delivers the oldest unconsumed event from each publisher as a tuple to the subscriber.
-    /// For example, if publisher `P1` emits elements `a` and `b`, and publisher `P2` emits elements `c` and `d`, and publisher `P3` emits the event `e`, the zip publisher emits the tuple `(a, c, e)`. It won’t emit a tuple with elements `b` or `d` until `P3` emits another event.
-    /// If any upstream publisher finishes successfuly or fails with an error, the zipped publisher does the same.
-    ///
-    /// - Parameters:
-    ///   - publisher1: A second publisher.
-    ///   - publisher2: A third publisher.
-    ///   - transform: A closure that receives the most recent value from each publisher and returns a new value to publish.
-    /// - Returns: A publisher that emits groups of elements from the upstream publishers as tuples.
-    public func zip<P, Q, T>(_ publisher1: P, _ publisher2: Q, _ transform: @escaping (Self.Output, P.Output, Q.Output) -> T) -> Publishers.Map<Publishers.Zip3<Self, P, Q>, T> where P : Publisher, Q : Publisher, Self.Failure == P.Failure, P.Failure == Q.Failure
-
-    /// Combine elements from three other publishers and deliver groups of elements as tuples.
-    ///
-    /// The returned publisher waits until all four publishers have emitted an event, then delivers the oldest unconsumed event from each publisher as a tuple to the subscriber.
-    /// For example, if publisher `P1` emits elements `a` and `b`, and publisher `P2` emits elements `c` and `d`, and publisher `P3` emits the elements `e` and `f`, and publisher `P4` emits the event `g`, the zip publisher emits the tuple `(a, c, e, g)`. It won’t emit a tuple with elements `b`, `d`, or `f` until `P4` emits another event.
-    /// If any upstream publisher finishes successfuly or fails with an error, the zipped publisher does the same.
-    ///
-    /// - Parameters:
-    ///   - publisher1: A second publisher.
-    ///   - publisher2: A third publisher.
-    ///   - publisher3: A fourth publisher.
-    /// - Returns: A publisher that emits groups of elements from the upstream publishers as tuples.
-    public func zip<P, Q, R>(_ publisher1: P, _ publisher2: Q, _ publisher3: R) -> Publishers.Zip4<Self, P, Q, R> where P : Publisher, Q : Publisher, R : Publisher, Self.Failure == P.Failure, P.Failure == Q.Failure, Q.Failure == R.Failure
-
-    /// Combine elements from three other publishers and deliver a transformed output.
-    ///
-    /// The returned publisher waits until all four publishers have emitted an event, then delivers the oldest unconsumed event from each publisher as a tuple to the subscriber.
-    /// For example, if publisher `P1` emits elements `a` and `b`, and publisher `P2` emits elements `c` and `d`, and publisher `P3` emits the elements `e` and `f`, and publisher `P4` emits the event `g`, the zip publisher emits the tuple `(a, c, e, g)`. It won’t emit a tuple with elements `b`, `d`, or `f` until `P4` emits another event.
-    /// If any upstream publisher finishes successfuly or fails with an error, the zipped publisher does the same.
-    ///
-    /// - Parameters:
-    ///   - publisher1: A second publisher.
-    ///   - publisher2: A third publisher.
-    ///   - publisher3: A fourth publisher.
-    ///   - transform: A closure that receives the most recent value from each publisher and returns a new value to publish.
-    /// - Returns: A publisher that emits groups of elements from the upstream publishers as tuples.
-    public func zip<P, Q, R, T>(_ publisher1: P, _ publisher2: Q, _ publisher3: R, _ transform: @escaping (Self.Output, P.Output, Q.Output, R.Output) -> T) -> Publishers.Map<Publishers.Zip4<Self, P, Q, R>, T> where P : Publisher, Q : Publisher, R : Publisher, Self.Failure == P.Failure, P.Failure == Q.Failure, Q.Failure == R.Failure
+    /// Buffers elements received from an upstream publisher.
+    /// - Parameter size: The maximum number of elements to store.
+    /// - Parameter prefetch: The strategy for initially populating the buffer.
+    /// - Parameter whenFull: The action to take when the buffer becomes full.
+    public func buffer(size: Int, prefetch: Publishers.PrefetchStrategy, whenFull: Publishers.BufferingStrategy<Self.Failure>) -> Publishers.Buffer<Self>
 }
 
 extension Publishers {
